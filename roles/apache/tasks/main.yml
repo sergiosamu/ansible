@@ -1,0 +1,19 @@
+---
+  - name: install apache
+    apt: 
+      state: present 
+      name:
+        - python-pip
+        - python-virtualenv
+        - python-mysqldb
+
+  - name: enable apache
+    service: name=apache2 state=started enabled=yes
+
+  - name: ensure wsgi installed
+    apache2_module: name=wsgi state=present
+    notify: restart apache
+
+  - name: deactivate default apache site
+    file: path=/etc/apache2/sites-enabled/000-default.conf state=absent
+    notify: restart apache

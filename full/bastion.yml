@@ -1,0 +1,11 @@
+---
+  - hosts: bastion
+    become: true
+    tasks:
+      - name: install curl
+        apt: 
+          name: 
+            - curl
+            - python-httplib2
+
+          state: present 

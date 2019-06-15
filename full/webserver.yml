@@ -1,0 +1,47 @@
+---
+  - hosts: webserver
+    become: true
+    tasks:
+      - name: install apache
+        apt: 
+          state: present 
+          update_cache: yes
+          name:
+            - apache2
+            - python-pip
+            - python-virtualenv
+            - libapache2-mod-wsgi
+            - python-mysqldb
+
+      - name: enable apache
+        service: name=apache2 state=started enabled=yes
+
+      - name: ensure wsgi installed
+        apache2_module: name=wsgi state=present
+        notify: restart apache
+
+      - name: copy sources
+        copy: src=../demo/app/ dest=/var/www/demo mode=0755
+        notify: restart apache
+
+      - name: copy apache conf
+        copy: src=../demo/demo.conf dest=/etc/apache2/sites-available mode=0755
+        notify: restart apache
+
+      - name: install pip virtualenv
+        pip: requirements=/var/www/demo/app/requirements.txt virtualenv=/var/www/demo/.venv
+        notify: restart apache
+
+      - name: deactivate default apache site
+        file: path=/etc/apache2/sites-enabled/000-default.conf state=absent
+        notify: restart apache
+
+      - name: activate demo apache file
+        file: src=/etc/apache2/sites-available/demo.conf dest=/etc/apache2/sites-enabled/demo.conf state=link
+        notify: restart apache
+
+    handlers:
+      - name: restart apache
+        service: name=apache2 state=restarted
+
+      

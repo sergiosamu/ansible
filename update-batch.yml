@@ -1,0 +1,26 @@
+---
+  - hosts: esmadsrv2010
+    tasks: 
+      - name: remove temp folder if exists
+        file: path=/tmp/{{ app_code }}/{{ batch_name}} state=absent
+
+      - name: unzip app zip {{ full path jar}}
+        unarchive: copy=no src={{ full path jar}} dest=/tmp/{{ app_code }}/{{ batch_name}}/
+
+      - name: validate bin directory {{ app_code }} {{ batch_name }}
+      - name: validate sh directory {{ app_code }} {{ batch_name }}
+      - name: validate conf directory {{ app_code }} {{ batch_name }}
+      - name: validate pwd in conexion.properties if exists (fail if no password defined)
+      - name: validate pwd in application.properties if exists (fail if no password defined)
+      - name: validate exisitng main jar in sh file
+
+  
+  - hosts: lpar5
+    tasks:
+      - name: rsync bin directory
+      - name: rsync sh directory
+      - name: rsync conf directory
+      - name: update pwd in conexion.properties if exists
+      - name: update pwd in application.properties if exists
+
+  
