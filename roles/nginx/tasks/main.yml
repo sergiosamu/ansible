@@ -22,7 +22,7 @@
     changed_when:  "active.stdout_lines != sites.key()"
 
   - name: deactivate sites
-    file: path=/etc/nginx/sites-enabled/{{} item }} state=absent
+    file: path=/etc/nginx/sites-enabled/{{ item }} state=absent
     with_items: active.stdout_lines
     when: item not in sites
     notify: restart nginx

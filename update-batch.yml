@@ -1,26 +1,116 @@
 ---
-  - hosts: esmadsrv2010
+  - hosts: control
+    become: true
+    gather_facts: false
     tasks: 
+      #- name: ensure dependencies installed
+      #  apt: name=[zip,rsync] state=present update_cache=yes
+
+      #### Validar zip aplicación
       - name: remove temp folder if exists
-        file: path=/tmp/{{ app_code }}/{{ batch_name}} state=absent
+        file: path=/tmp/{{ app_code }}/{{ batch_name }} state=absent
 
-      - name: unzip app zip {{ full path jar}}
-        unarchive: copy=no src={{ full path jar}} dest=/tmp/{{ app_code }}/{{ batch_name}}/
+      - name: create temp folder
+        file: path=/tmp/{{ app_code }}/{{ batch_name}}/app/ state=directory
 
-      - name: validate bin directory {{ app_code }} {{ batch_name }}
-      - name: validate sh directory {{ app_code }} {{ batch_name }}
-      - name: validate conf directory {{ app_code }} {{ batch_name }}
-      - name: validate pwd in conexion.properties if exists (fail if no password defined)
-      - name: validate pwd in application.properties if exists (fail if no password defined)
-      - name: validate exisitng main jar in sh file
+      - name: unzip app zip file
+        unarchive: copy=no src={{ source_path }}/{{ batch_name }}-{{ version }}.zip dest=/tmp/{{ app_code }}/{{ batch_name }}/app/
 
-  
-  - hosts: lpar5
+      - name: verify bin directory exists
+        stat: path=/tmp/{{ app_code }}/{{ batch_name}}/app/bin/ 
+        register: dir
+        failed_when: not dir.stat.exists 
+
+      - name: verify sh directory exists
+        stat: path=/tmp/{{ app_code }}/{{ batch_name}}/app/sh/ 
+        register: dir
+        failed_when: not dir.stat.exists 
+
+      - name: verify sh directory exists
+        stat: path=/tmp/{{ app_code }}/{{ batch_name }}/app/sh/startBatch.sh
+        register: file
+        failed_when: not file.stat.exists 
+    
+      #### Validar zip aplicación
+
+      - name: create conf temp folder
+        file: path=/tmp/{{ app_code }}/{{ batch_name }}/conf/ state=directory
+
+      - name: unzip conf zip file
+        unarchive: copy=no src={{ source_path }}/{{ batch_name }}_Conf-{{ version }}.zip dest=/tmp/{{ app_code }}/{{ batch_name }}/conf/
+
+      - name: verify env directory exists
+        stat: path=/tmp/{{ app_code }}/{{ batch_name }}/conf/{{ env }}
+        register: dir
+        failed_when: not dir.stat.exists 
+
+      - name: verify conexion.properties file exists
+        stat: path=/tmp/{{ app_code }}/{{ batch_name }}/conf/{{env}}/conexion.properties
+        register: conex_file
+
+      - name: verify application.properties file exists
+        stat: path=/tmp/{{ app_code }}/{{ batch_name }}/conf/{{env}}/application.properties
+        register: app_file
+
+      - name: check for conexion.properties or application.properties
+        fail: msg="Missing configuration file conexoin or application"
+        when: not conex_file.stat.exists and not app_file.stat.exists
+
+      - name: replace pwd in conexion.properties
+        replace: 
+          path: /tmp/{{ app_code }}/{{ batch_name }}/conf/{{env}}/conexion.properties
+          regexp: "%%{{ vars[app_code] }}%%"
+          replace: '{{vars[vars[app_code]]}}'
+        register: user_in_conex
+        when: conex_file.stat.exists 
+        failed_when: env=='pro' and not user_in_conex.changed
+
+      - name: replace pwd in application.properties
+        replace: 
+          path: /tmp/{{ app_code }}/{{ batch_name }}/conf/{{env}}/application.properties
+          regexp: "%%{{ vars[app_code] }}%%"
+          replace: '{{vars[vars[app_code]]}}'
+        register: user_in_conex
+        when: app_file.stat.exists
+        failed_when: env=='pro' and not user_in_conex.changed
+
+  - hosts: db01
+    become: true
+    gather_facts: true
     tasks:
-      - name: rsync bin directory
-      - name: rsync sh directory
-      - name: rsync conf directory
-      - name: update pwd in conexion.properties if exists
-      - name: update pwd in application.properties if exists
+      - name: ensure application directory
+        file: path=/batchCTF/aplicCTF/{{ app_code }}/app/{{ batch_name }}/ state=directory
 
-  
+      - name: ensure conf directory
+        file: path=/batchCTF/aplicCTF/{{ app_code }}/conf/{{ batch_name }}/ state=directory
+
+      - name: ensure log directory
+        file: path=/batchCTF/dataCTF/logs/{{ app_code }}/{{ batch_name }}/ state=directory
+
+      - name: copy app files
+        synchronize:
+            src: /tmp/{{ app_code }}/{{ batch_name }}/app/
+            dest: /batchCTF/aplicCTF/{{ app_code }}/app/{{ batch_name }}/
+            dirs: yes
+            mode: push
+            delete: yes
+
+      - name: copy conf files
+        synchronize:
+            src: /tmp/{{ app_code }}/{{ batch_name }}/conf/
+            dest: /batchCTF/aplicCTF/{{ app_code }}/conf/{{ batch_name }}/
+            dirs: yes
+            mode: push
+            delete: yes  
+
+      - name: get bat files         
+        shell: ls -1 /batchCTF/aplicCTF/{{ app_code }}/app/{{ batch_name }}/sh
+        register: shell_files
+
+      - name: debug shell files
+        debug: var=shell_files
+
+      - name: exec permissions to shell files
+        file: path=/batchCTF/aplicCTF/{{ app_code }}/app/{{ batch_name }}/sh/{{ item }} mode=u+x
+        with_items: "{{ shell_files.stdout_lines }}"
+        when: ansible_facts['os_family'] == 'Debian'
